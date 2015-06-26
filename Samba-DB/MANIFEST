@@ -1,0 +1,9 @@
+doc/smblogs.txt
+lib/Samba/DB.pm
+lib/Samba/LogParser.pm
+bin/smbdmp
+bin/smbdb
+bin/loadsmbdir
+bin/smbproc
+MANIFEST
+Makefile.PL

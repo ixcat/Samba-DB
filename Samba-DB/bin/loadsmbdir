@@ -1,0 +1,184 @@
+#! /usr/bin/env perl
+#
+# $Id$
+# 
+# loadsmbdir:
+#
+# load a directory containing a set of samba logs
+#
+# native directory:
+#
+#   /var/log/samba: current host hostname or as arg
+# 
+# directory structure 1: one-hosts-log-directory
+#
+#   /hostname/samba: script given host-dir path, hostname extracted from dir
+#
+# directory structure 2: set-of-hosts-log-directories
+#
+#   /topdir/{hostname/samba}:
+#     script given topdir, hostname extracted from dirs
+#
+# not supporting dirstructure 2 since this can easily be globbed 
+# for invocation esp if 'directory structure 1' format takes multiple
+# directories.
+#
+# Not sure which is better..
+# also, what about the 'native host' case..
+#
+# ... probably need 'modes'
+# 
+#     in which case, should begin with the 'native directory' case
+#
+
+package main;
+
+use strict;
+use warnings;
+
+use File::Find;
+use File::stat;
+use File::Basename;
+
+use Sys::Hostname;
+
+use FindBin;
+use lib "$FindBin::Bin" . "/../lib";
+
+use YAML;
+
+use Samba::DB;
+use Samba::LogParser;
+
+# sub predecls
+
+# note concerning samba log-date-sorting:
+#   it seems mtimes might correspond for 'old' vs 'live' log files
+#   e.g. /var/log/samba/foo and /var/log/samba/old/foo
+#
+#   however, this is not so much of a problem, since this indicated
+#   that the log has been rotated but not yet re-written to.
+#
+#   once the 'live' file is logged to, the timestamp will be updated
+#   and subsequently will sort properly (e.g. older->newer)
+#
+
+sub getfileshash { # getfilehash(dir): returns mtime-keyed hash of files in dir
+	my $dir = shift;
+
+	my $ht = {}; # ht->{mtime} = [path,...];
+
+	my $wanted = sub {
+		my $fp = $File::Find::name;
+
+		return if -d $fp;
+
+		my $sb = lstat($fp);
+		my $mt = $sb->mtime();
+
+		if($ht->{$mt}) {
+			push @{$ht->{$mt}}, $fp;
+		}
+		else {
+			$ht->{$mt} = [$fp];
+		}
+
+	};
+
+	find({
+		wanted => $wanted,
+		follow => 0,
+		no_chdir => 1},
+		$dir
+	);
+	return $ht;
+}
+
+sub usage_exit {
+	(my $me = $0) =~ s:.*/::;
+
+	print "usage: $me action db path ...\n";
+	print "  where action is one of:\n";
+	print "    - nativedir db path ...:\n";
+	print "      where 'path' is a 'host native' /var/log/samba layout\n";
+	print "      hostname for db recs will be env HOSTNAME or system\n";
+	print "    - hostdir db path ...:\n";
+	print "      where 'path' is the top-level in a directory layout\n";
+	print "      like '/hostname{/samba}' - hostname will be used in db\n";
+
+	exit 0;
+}
+
+sub loaddir { # loaddir db host dir
+	my ($smbdb,$host,$dir) = @_;
+
+	my $proc = Samba::LogParser->new();
+	$proc->sethost($host);
+
+	my $fh = getfileshash($dir);
+
+	$smbdb->begintxn();
+
+	foreach my $ts (sort keys %{$fh}) {
+		foreach my $f (@{$fh->{$ts}}) {
+			next if $f =~ m:/cores($|/):;
+			$proc->open($f);
+			while(my $rec = $proc->next()) {
+				if(!$smbdb->insertrec($rec)) {
+					$rec->{fname} = $f;
+					print STDERR YAML::Dump $rec;
+				}
+			}
+		}
+	}
+
+	$smbdb->endtxn();
+}
+
+sub main {
+
+	my ($act,$db,$dirs);
+
+	my ($hn,$smbdb);
+
+	($act, $db, @{$dirs}) = @_;
+	usage_exit unless scalar @{$dirs} > 0;
+
+	if(!$act =~ m:(nativedir|hostdir):) {
+		usage_exit;
+	}
+
+	if(-f $db) {
+		$smbdb = Samba::DB->new($db);
+	}
+	else {
+		$smbdb = Samba::DB->new($db);
+		$smbdb->createdb();
+	}
+
+	if ($act eq 'nativedir') {
+		$hn = $ENV{HOSTNAME} if $ENV{HOSTNAME};
+		$hn = hostname unless $hn;
+
+		foreach my $dir (@{$dirs}) {
+			loaddir($smbdb,$hn,$dir);
+		}
+	}
+
+	if ($act eq 'hostdir') {
+		foreach my $dir (@{$dirs}) {
+			my $hn = basename($dir);
+			print "# host: $hn\n";
+			loaddir($smbdb,$hn,$dir);
+		}
+	}
+
+	return 0;
+}
+
+
+# _start:
+exit main @ARGV;
+
+1;
+
