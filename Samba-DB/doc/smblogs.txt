@@ -1,0 +1,39 @@
+limitations:
+
+  - lack of 'close conn' pid prevents proper start:end mapping
+    in event of multiple sessions from a host
+
+misc entries:
+
+
+
+
+
+[2015/04/09 08:34:21.634446,  3] auth/auth.c:219(check_ntlm_password)
+  check_ntlm_password:  Checking password for unmapped user [ADRICE]\[amj10]@[AMANDA-PC] with the new password interface
+[2015/04/09 08:34:21.634505,  3] auth/auth.c:222(check_ntlm_password)
+  check_ntlm_password:  mapped user is: [ADRICE]\[amj10]@[AMANDA-PC]
+[2015/04/09 08:34:21.654217,  3] auth/auth.c:268(check_ntlm_password)
+  check_ntlm_password: winbind authentication for user [amj10] succeeded
+[2015/04/09 08:34:21.654258,  2] auth/auth.c:309(check_ntlm_password)
+  check_ntlm_password:  authentication for user [amj10] -> [amj10] -> [amj10] succeeded
+[2015/04/09 08:34:21.681522,  1] smbd/service.c:1114(make_connection_snum)
+  amanda-pc (10.118.76.159) connect to service purcell initially as user amj10 (uid=46534, gid=990) (pid 26237)
+[2015/04/09 08:49:19.387408,  1] smbd/process.c:457(receive_smb_talloc)
+  receive_smb_raw_talloc failed for client 10.118.76.159 read error = NT_STATUS_CONNECTION_RESET.
+[2015/04/09 08:49:19.387505,  1] smbd/service.c:1378(close_cnum)
+  amanda-pc (10.118.76.159) closed connection to service purcell
+
+Double connect/disconnect in 1x second.. :
+
+[2013/08/16 15:03:15.001849,  1] smbd/service.c:1070(make_connection_snum)
+  asus-pc (10.127.200.248) connect to service purcell initially as user lz26 (ui
+d=50256, gid=990) (pid 8788)
+[2013/08/16 15:03:15.214852,  1] smbd/service.c:1251(close_cnum)
+  asus-pc (10.127.200.248) closed connection to service purcell
+[2013/08/16 15:03:15.491423,  1] smbd/service.c:1070(make_connection_snum)
+  asus-pc (10.127.200.248) connect to service purcell initially as user lz26 (uid=50256, gid=990) (pid 8789)
+[2013/08/16 18:38:15.831738,  1] smbd/service.c:1251(close_cnum)
+  asus-pc (10.127.200.248) closed connection to service purcell
+
+... violates a primary key of (timein,cliaddr,svcname)
