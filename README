@@ -1,0 +1,21 @@
+
+Samba::DB: perl Samba log parser and SQLite record database
+
+Requires DBD::SQLite.
+
+Interprets Samba log records (e.g. synthesizes sessions from raw data)
+and loads into a simple SQLite database table.
+
+installation:
+
+  perl Makefile.PL
+  make
+  make install
+
+usage:
+
+  smbdb : actual application; run with no arguments for synopsys
+  smbdmp : low-level log dump
+  smbproc : higher-level 'event' dump
+  loadsmbdir : wrapper to load directory-of-logs as is common/default config
+
